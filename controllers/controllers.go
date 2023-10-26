@@ -11,11 +11,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type Credentials struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
-}
-
 func (database *Database) CreateUser(c *gin.Context) {
 	var (
 		user   models.User
@@ -36,20 +31,15 @@ func (database *Database) CreateUser(c *gin.Context) {
 		user.Password = utils.HashPassword(password)
 
 		// Check avability username
-		query := database.DB.First(&user)
+		query := database.DB.First(&user, "username = ?", username)
 
-		if query.Error != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": query.Error.Error()})
+		if query.RowsAffected > 0 {
+			c.JSON(http.StatusNotAcceptable, gin.H{
+				"status":  http.StatusNotAcceptable,
+				"message": "Username already taken",
+			})
+			c.Abort()
 			return
-		} else {
-			if query.RowsAffected > 0 {
-				c.JSON(http.StatusNotAcceptable, gin.H{
-					"status":  http.StatusNotAcceptable,
-					"message": "Username already taken",
-				})
-				c.Abort()
-				return
-			}
 		}
 
 		database.DB.Create(&user)
@@ -68,7 +58,45 @@ func (database *Database) CreateUser(c *gin.Context) {
 		c.Abort()
 		return
 	}
+}
 
+func (database *Database) DeleteUser(c *gin.Context) {
+	var(
+		user models.User
+		result gin.H
+	)
+
+	id := c.Param("userId")
+	parsedId, _ := strconv.ParseUint(id, 10, 32)
+
+	query := database.DB.First(&user, "id = ?", parsedId)
+
+	if query.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status": http.StatusInternalServerError,
+			"message": "Internal server error",
+		})
+		c.Abort()
+		return
+	} else {
+		if query.RowsAffected == 0 {
+			c.JSON(http.StatusNotFound, gin.H{
+				"status": http.StatusNotFound,
+				"message": "User not found",
+			})
+			c.Abort()
+			return
+		} else {
+			database.DB.Where("id = ?", parsedId).Unscoped().Delete(&user)
+			result = gin.H{
+				"status": http.StatusOK,
+				"message": "User deleted",
+			}
+			c.JSON(http.StatusOK, result)
+			c.Abort()
+			return
+		}
+	}
 }
 
 func (database *Database) CheckUser(c *gin.Context) {
@@ -84,20 +112,21 @@ func (database *Database) CheckUser(c *gin.Context) {
 }
 
 func (database *Database) LoginHandler(c *gin.Context) {
-	var user Credentials
 	users := models.User{}
-	err := c.Bind(&user)
+	email := c.PostForm("email")
+	password := c.PostForm("password")
+	
 
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  http.StatusBadRequest,
-			"message": "Invalid request",
+	if !utils.ValidUser(email, password) {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"status":  http.StatusUnauthorized,
+			"message": "Invalid credentials",
 		})
 	}
 
 	// Search user in database
-	userResult := database.DB.First(&users, "email = ?", user.Email)
-	if userResult != nil {
+	userResult := database.DB.Select("username", "password", "email").First(&users, "email = ?", email)
+	if userResult.RowsAffected == 0 {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  http.StatusInternalServerError,
 			"message": "User not found",
@@ -114,7 +143,7 @@ func (database *Database) LoginHandler(c *gin.Context) {
 			return
 		} else {
 			// Compare password
-			if !utils.CheckPasswordHash(user.Password, users.Password) {
+			if !utils.CheckPasswordHash(password, users.Password) {
 				c.JSON(http.StatusUnauthorized, gin.H{
 					"status":  http.StatusUnauthorized,
 					"message": "Invalid credentials",
@@ -125,7 +154,9 @@ func (database *Database) LoginHandler(c *gin.Context) {
 		}
 	}
 
-	sign := jwt.New(jwt.GetSigningMethod("HS256"))
+	sign := jwt.NewWithClaims(jwt.GetSigningMethod("HS256"), jwt.MapClaims{
+		"user": users,
+	})
 	token, err := sign.SignedString([]byte("secret"))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
