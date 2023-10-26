@@ -3,6 +3,7 @@ package router
 import (
 	"rkpbi-go/controllers"
 	"rkpbi-go/database"
+	"rkpbi-go/utils"
 
 	"github.com/gin-gonic/gin"
 )
@@ -25,9 +26,9 @@ func PhotoRouter(route *gin.Engine) {
 	photoController := &controllers.Database{DB: db}
 
 	router.GET("/", photoController.CreateUser)
-	router.POST("/", photoController.CreateUser)
-	router.PUT("/:photoId", photoController.CreateUser)
-	router.DELETE("/:photoId", photoController.CreateUser)
+	router.POST("/", utils.AuthMiddleware, photoController.CreateUser)
+	router.PUT("/:photoId", utils.AuthMiddleware, photoController.CreateUser)
+	router.DELETE("/:photoId", utils.AuthMiddleware, photoController.CreateUser)
 }
 
 
