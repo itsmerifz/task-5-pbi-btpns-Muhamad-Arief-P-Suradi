@@ -6,10 +6,10 @@ import (
 
 type User struct {
 	gorm.Model
-	ID        uint `gorm:"primaryKey,not null"`
-	Username  string
-	Email     string    `gorm:"unique,not null"`
-	Password  string    `gorm:"not null,size:>6"`
+	ID        uint		  `gorm:"primaryKey,not null" json:"id,omitempty"`
+	Username  string 		`gorm:"not null" json:"username,omitempty"`
+	Email     string    `gorm:"unique,not null" json:"email,omitempty"`
+	Password  string    `gorm:"not null,size:>6" json:"password,omitempty"`
 	Photo     Photo     `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 }
 
