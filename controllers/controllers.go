@@ -12,7 +12,7 @@ import (
 )
 
 type Credentials struct {
-	Username string `json:"username"`
+	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
@@ -27,19 +27,48 @@ func (database *Database) CreateUser(c *gin.Context) {
 	email := c.PostForm("email")
 	password := c.PostForm("password")
 
+	// Validate input
 	parsedId, _ := strconv.ParseUint(id, 10, 32)
+	if utils.ValidUser(email, password) {
+		user.ID = uint(parsedId)
+		user.Username = username
+		user.Email = email
+		user.Password = utils.HashPassword(password)
 
-	user.ID = uint(parsedId)
-	user.Username = username
-	user.Email = email
-	user.Password = utils.HashPassword(password)
+		// Check avability username
+		query := database.DB.First(&user)
 
-	database.DB.Create(&user)
-	result = gin.H{
-		"result": user,
+		if query.Error != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": query.Error.Error()})
+			return
+		} else {
+			if query.RowsAffected > 0 {
+				c.JSON(http.StatusNotAcceptable, gin.H{
+					"status":  http.StatusNotAcceptable,
+					"message": "Username already taken",
+				})
+				c.Abort()
+				return
+			}
+		}
+
+		database.DB.Create(&user)
+		result = gin.H{
+			"result": user,
+		}
+
+		c.JSON(http.StatusOK, result)
+		c.Abort()
+		return
+	} else {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  http.StatusBadRequest,
+			"message": "Unvalid input",
+		})
+		c.Abort()
+		return
 	}
 
-	c.JSON(http.StatusOK, result)
 }
 
 func (database *Database) CheckUser(c *gin.Context) {
@@ -67,7 +96,7 @@ func (database *Database) LoginHandler(c *gin.Context) {
 	}
 
 	// Search user in database
-	userResult := database.DB.First(&users, "username = ?", user.Username)
+	userResult := database.DB.First(&users, "email = ?", user.Email)
 	if userResult != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  http.StatusInternalServerError,
@@ -91,7 +120,7 @@ func (database *Database) LoginHandler(c *gin.Context) {
 					"message": "Invalid credentials",
 				})
 				c.Abort()
-				return 
+				return
 			}
 		}
 	}
