@@ -9,7 +9,10 @@ import (
 
 func InitDB() *gorm.DB {
 	dbUrl := "root:@tcp(127.0.0.1:3306)/rkpbi?charset=utf8&parseTime=True&loc=Local"
-	db, err := gorm.Open(mysql.Open(dbUrl), &gorm.Config{})
+	db, err := gorm.Open(mysql.Open(dbUrl), &gorm.Config{
+		SkipDefaultTransaction: true,
+		PrepareStmt: true,
+	})
 	if err != nil {
 		panic("failed to connect database")
 	}
