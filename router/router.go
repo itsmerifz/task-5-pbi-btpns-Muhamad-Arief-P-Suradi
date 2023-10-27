@@ -25,10 +25,10 @@ func PhotoRouter(route *gin.Engine) {
 	db := database.InitDB()
 	photoController := &controllers.Database{DB: db}
 
-	router.GET("/", photoController.CreateUser)
-	router.POST("/", utils.AuthMiddleware, photoController.CreateUser)
-	router.PUT("/:photoId", utils.AuthMiddleware, photoController.CreateUser)
-	router.DELETE("/:photoId", utils.AuthMiddleware, photoController.CreateUser)
+	router.GET("/", photoController.GetPhoto)
+	router.POST("/", utils.AuthMiddleware, photoController.CreatePhoto)
+	router.PUT("/:photoId", utils.AuthMiddleware, photoController.UpdatePhoto)
+	router.DELETE("/:photoId", utils.AuthMiddleware, photoController.DeletePhoto)
 }
 
 
